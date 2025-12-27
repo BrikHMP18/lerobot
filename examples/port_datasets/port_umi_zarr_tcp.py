@@ -95,7 +95,7 @@ def get_episode_boundaries(zarr_group):
     episode_ends = np.array(zarr_group[ZARR_EPISODE_ENDS_KEY])
     episode_starts = np.concatenate([[0], episode_ends[:-1]])
 
-    episodes = list(zip(episode_starts, episode_ends))
+    episodes = list(zip(episode_starts, episode_ends, strict=True))
     logging.info(f"Found {len(episodes)} episodes")
     logging.debug(f"Episode boundaries: {episodes}")
 
@@ -294,7 +294,7 @@ def validate_dataset(repo_id: str):
 def main():
     """
     Main entry point for converting UMI .zarr datasets to LeRobot format.
-    
+
     Parses command-line arguments and executes the conversion pipeline,
     optionally pushing the result to HuggingFace Hub.
     """
@@ -362,4 +362,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

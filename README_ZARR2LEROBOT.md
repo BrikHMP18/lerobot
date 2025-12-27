@@ -5,6 +5,7 @@
 Scripts to convert UMI `.zarr` datasets to LeRobot format for HuggingFace Hub upload.
 
 **Two conversion modes:**
+
 - **TCP Pose** (cartesian): ✅ Working - `[x, y, z, rx, ry, rz, gripper]`
 - **Joint Angles** (articular): ⚠️ Blocked - requires valid URDF
 
@@ -27,6 +28,7 @@ cd ~/NONHUMAN/lerobot
 ### Current Status
 
 ❌ **IK solver fails** with available Piper URDFs:
+
 - Tested: `piper_description.urdf` (new) and `piper_description_old.urdf`
 - Problem: Neither URDF produces valid IK solutions for simple poses
 - Root cause: Incorrect joint transformations (RPY), offsets, or limits in URDF files
@@ -44,6 +46,7 @@ cd ~/NONHUMAN/lerobot
    - Validate FK/IK with known poses from dataset
 
 3. **Test validation command:**
+
 ```bash
 conda create -n ik_test python=3.10 -y
 conda activate ik_test
@@ -69,6 +72,7 @@ print(f'IK: {\"SUCCESS\" if sol.success else \"FAIL\"}')
 ## Configuration
 
 ### TCP Conversion (convert_umi_tcp.sh)
+
 ```bash
 ZARR_PATH="$HOME/NONHUMAN/universal_manipulation_interface/example_demo_session/dataset.zarr"
 REPO_ID="NONHUMAN-RESEARCH/pick_the_cup_demo_dataset"
@@ -78,6 +82,7 @@ TASK_DESC="pick up the cup and put it in the plate"
 ```
 
 ### Joint Conversion (convert_umi_joints.sh - blocked)
+
 ```bash
 # Same as above, plus:
 ROBOT_TYPE="piper"
@@ -103,17 +108,20 @@ lerobot/
 ## Technical Notes
 
 ### Why TCP Pose Works
+
 - UMI datasets store TCP pose natively (no conversion needed)
 - Robot SDK handles IK during deployment
 - Compatible with any robot (robot-agnostic)
 
 ### Why Joint Angles Is Blocked
+
 - Requires accurate URDF for inverse kinematics
 - Current URDFs fail IK solver validation
 - `roboticstoolbox-python` also conflicts with LeRobot's NumPy 2.x
 - **Solution**: Get validated URDF from manufacturer or calibrate from real robot
 
 ### Data Normalization
+
 - Dataset stores raw values (meters, radians)
 - LeRobot applies normalization during training via `NormalizerProcessorStep`
 - Statistics auto-calculated by `dataset.finalize()`
@@ -122,12 +130,12 @@ lerobot/
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| `codec not available: 'imagecodecs_jpegxl'` | `pip install imagecodecs-numcodecs` |
-| `FileExistsError` on output dir | `rm -rf $OUTPUT_DIR` |
-| `403 Forbidden` HuggingFace | Check `huggingface-cli whoami` for org access |
-| IK fails with URDF | **Contact AgileX for validated URDF** |
+| Issue                                       | Solution                                      |
+| ------------------------------------------- | --------------------------------------------- |
+| `codec not available: 'imagecodecs_jpegxl'` | `pip install imagecodecs-numcodecs`           |
+| `FileExistsError` on output dir             | `rm -rf $OUTPUT_DIR`                          |
+| `403 Forbidden` HuggingFace                 | Check `huggingface-cli whoami` for org access |
+| IK fails with URDF                          | **Contact AgileX for validated URDF**         |
 
 ---
 

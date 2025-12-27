@@ -18,4 +18,3 @@ python examples/port_datasets/port_umi_zarr_joints.py \
   --robot-type "$ROBOT_TYPE" \
   --task-description "$TASK_DESC" \
   --push-to-hub
-
