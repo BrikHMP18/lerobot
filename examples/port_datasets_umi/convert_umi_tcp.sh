@@ -9,7 +9,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-$HOME/NONHUMAN/umi_lerobot_datasets/pick_the_cup_demo_
 FPS="${FPS:-30}"
 TASK_DESC="${TASK_DESC:-pick up the cup and put it in the plate}"
 
-python examples/port_datasets/port_umi_zarr_tcp.py \
+python examples/port_datasets_umi/port_umi_zarr_tcp.py \
   --zarr-path "$ZARR_PATH" \
   --repo-id "$REPO_ID" \
   --output-dir "$OUTPUT_DIR" \

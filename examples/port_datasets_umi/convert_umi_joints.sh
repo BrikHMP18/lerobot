@@ -10,7 +10,7 @@ FPS="${FPS:-30}"
 ROBOT_TYPE="${ROBOT_TYPE:-piper}"
 TASK_DESC="${TASK_DESC:-pick up the cup and put it in the plate}"
 
-python examples/port_datasets/port_umi_zarr_joints.py \
+python examples/port_datasets_umi/port_umi_zarr_joints.py \
   --zarr-path "$ZARR_PATH" \
   --repo-id "$REPO_ID" \
   --output-dir "$OUTPUT_DIR" \

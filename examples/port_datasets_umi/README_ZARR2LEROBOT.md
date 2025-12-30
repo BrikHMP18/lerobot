@@ -16,7 +16,7 @@ Scripts to convert UMI `.zarr` datasets to LeRobot format for HuggingFace Hub up
 ```bash
 conda activate lerobot
 cd ~/NONHUMAN/lerobot
-./convert_umi_tcp.sh
+./examples/port_datasets_umi/convert_umi_tcp.sh
 ```
 
 **Output**: Dataset uploaded to `NONHUMAN-RESEARCH/pick_the_cup_demo_dataset`
@@ -95,12 +95,12 @@ URDF_PATH="$HOME/NONHUMAN/piper_urdf/piper_description.urdf"  # Needs valid URDF
 
 ```
 lerobot/
-├── examples/port_datasets/
-│   ├── port_umi_zarr_tcp.py      # ✅ Working
-│   └── port_umi_zarr_joints.py   # ⚠️ Blocked (needs URDF)
-├── convert_umi_tcp.sh             # ✅ Working
-├── convert_umi_joints.sh          # ⚠️ Blocked (needs URDF)
-└── README_ZARR2LEROBOT.md
+└── examples/port_datasets_umi/
+    ├── port_umi_zarr_tcp.py      # ✅ Working
+    ├── port_umi_zarr_joints.py   # ⚠️ Blocked (needs URDF)
+    ├── convert_umi_tcp.sh         # ✅ Working
+    ├── convert_umi_joints.sh      # ⚠️ Blocked (needs URDF)
+    └── README_ZARR2LEROBOT.md
 ```
 
 ---
@@ -141,7 +141,7 @@ lerobot/
 
 ## Summary
 
-- ✅ **TCP conversion**: Fully working, use `./convert_umi_tcp.sh`
+- ✅ **TCP conversion**: Fully working, use `./examples/port_datasets_umi/convert_umi_tcp.sh`
 - ⚠️ **Joint conversion**: Blocked until valid Piper URDF obtained
 - 🎯 **Next action**: Contact AgileX Robotics or generate URDF from real robot
 
