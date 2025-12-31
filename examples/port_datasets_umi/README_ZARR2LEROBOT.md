@@ -39,19 +39,8 @@ cd ~/NONHUMAN/lerobot
 **Input**: TCP dataset at `examples/port_datasets_umi/pick_the_cup_demo_dataset`
 **Output**: Joint angles dataset uploaded to `NONHUMAN-RESEARCH/pick_the_cup_demo_dataset_joints`
 
-### How It Works
-
-1. **Loads TCP dataset** from local directory or HuggingFace
-2. **Solves Inverse Kinematics** using Piper's official DH parameters
-3. **Converts each frame**: `[x,y,z,rx,ry,rz,gripper]` → `[joint0...joint5,gripper]`
-4. **Creates new dataset** with joint angles format
-
-### IK Method
-
-- Uses **numerical optimization** (scipy.optimize.least_squares)
-- Based on **official Piper DH parameters** from AgileX SDK
+- Uses numerical IK solver with official Piper DH parameters
 - No URDF required ✅
-- Success rate: ~95-99% (depends on pose reachability)
 
 ### Configuration
 
@@ -62,51 +51,6 @@ INPUT_DATASET="path/to/tcp_dataset"
 OUTPUT_REPO_ID="your-org/dataset_joints"
 DH_IS_OFFSET=1  # 0=old DH, 1=new DH (firmware >= S-V1.6-3)
 ```
-
----
-
-## Direct Joint Angles Conversion (Blocked)
-
-### Current Status
-
-✅ **WORKING** - TCP to joint angle conversion implemented using official AgileX DH parameters.
-
-**Implementation:**
-
-- `piper_kinematics.py` - Forward/Inverse Kinematics module using official DH parameters
-- `convert_tcp_to_joints.py` - Main conversion script (TCP → joints)
-- `convert_tcp_to_joints.sh` - Bash wrapper for easy execution
-
-**Key Features:**
-
-- Uses official AgileX DH parameters (supports firmware versions S-V1.6-3 and older)
-- Numerical IK solver using `scipy.optimize.least_squares`
-- Respects joint limits and validates convergence
-- Typical IK solve time: 20-50ms per pose
-- Success rate: >95% on real UMI datasets
-
-**Usage:**
-
-```bash
-# Convert existing TCP dataset to joint angles
-cd examples/port_datasets_umi
-./convert_tcp_to_joints.sh
-
-# Or with custom parameters:
-INPUT_DATASET="NONHUMAN-RESEARCH/my_tcp_dataset" \
-OUTPUT_REPO_ID="NONHUMAN-RESEARCH/my_joints_dataset" \
-DH_IS_OFFSET=0x01 \
-./convert_tcp_to_joints.sh
-```
-
-**Environment Variables:**
-
-- `INPUT_DATASET`: HuggingFace repo ID or local path to TCP dataset
-- `OUTPUT_REPO_ID`: Target HuggingFace repo ID for joints dataset
-- `OUTPUT_DIR`: Local output directory (default: `./output_joints`)
-- `DH_IS_OFFSET`: DH version (0x01=new firmware >=S-V1.6-3, 0x00=old)
-
-**Note:** This implementation bypasses URDF issues by using the official Denavit-Hartenberg parameters directly from AgileX SDK.
 
 ---
 
@@ -150,24 +94,11 @@ lerobot/
 
 ## Technical Notes
 
-### Why TCP Pose Works
+### Notes
 
-- UMI datasets store TCP pose natively (no conversion needed)
-- Robot SDK handles IK during deployment
-- Compatible with any robot (robot-agnostic)
-
-### Why Joint Angles Is Blocked
-
-- Requires accurate URDF for inverse kinematics
-- Current URDFs fail IK solver validation
-- `roboticstoolbox-python` also conflicts with LeRobot's NumPy 2.x
-- **Solution**: Get validated URDF from manufacturer or calibrate from real robot
-
-### Data Normalization
-
-- Dataset stores raw values (meters, radians)
-- LeRobot applies normalization during training via `NormalizerProcessorStep`
-- Statistics auto-calculated by `dataset.finalize()`
+- TCP pose: UMI stores natively, robot-agnostic
+- Direct joint conversion: Blocked (requires valid URDF)
+- Data normalization: Applied automatically by LeRobot during training
 
 ---
 
@@ -188,9 +119,3 @@ lerobot/
 - ✅ **TCP → Joints conversion**: Fully working, use `./examples/port_datasets_umi/convert_tcp_to_joints.sh`
 - ⚠️ **Direct joint conversion** (.zarr → Joints): Blocked until valid Piper URDF obtained
 - 🎯 **Recommended workflow**: .zarr → TCP → Joints (two-step conversion)
-
----
-
-## Contact
-
-For URDF validation or joint conversion issues, prioritize obtaining manufacturer-validated robot model.
