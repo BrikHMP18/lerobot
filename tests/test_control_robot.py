@@ -121,3 +121,151 @@ def test_record_and_replay(tmp_path):
         mock_get_safe_version.return_value = "v3.0"
         mock_snapshot_download.return_value = str(tmp_path / "record_and_replay")
         replay(replay_cfg)
+
+
+def test_record_manual_right_then_esc_saves_two_episodes(tmp_path):
+    robot_cfg = MockRobotConfig()
+    teleop_cfg = MockTeleopConfig()
+    dataset_cfg = DatasetRecordConfig(
+        repo_id=DUMMY_REPO_ID,
+        single_task="Dummy task",
+        root=tmp_path / "manual_right_then_esc",
+        num_episodes=1,
+        push_to_hub=False,
+        manual_episode_control=True,
+    )
+    cfg = RecordConfig(
+        robot=robot_cfg,
+        dataset=dataset_cfg,
+        teleop=teleop_cfg,
+        play_sounds=False,
+    )
+
+    events = {"exit_early": False, "rerecord_episode": False, "stop_recording": False}
+    save_calls = []
+    step = {"value": 0}
+
+    def dummy_record_loop(*args, **kwargs):
+        dataset = kwargs["dataset"]
+        dataset.episode_buffer["size"] = 1
+
+        if step["value"] == 0:
+            events["exit_early"] = True
+        else:
+            events["stop_recording"] = True
+            events["exit_early"] = True
+        step["value"] += 1
+
+    def dummy_save_episode(self, *args, **kwargs):
+        save_calls.append(1)
+        self.episode_buffer = self.create_episode_buffer()
+
+    with (
+        patch("lerobot.scripts.lerobot_record.init_keyboard_listener", return_value=(None, events)),
+        patch("lerobot.scripts.lerobot_record.record_loop", side_effect=dummy_record_loop),
+        patch("lerobot.datasets.lerobot_dataset.LeRobotDataset.save_episode", new=dummy_save_episode),
+    ):
+        record(cfg)
+
+    assert len(save_calls) == 2
+
+
+def test_record_manual_left_rerecord_discards_episode(tmp_path):
+    robot_cfg = MockRobotConfig()
+    teleop_cfg = MockTeleopConfig()
+    dataset_cfg = DatasetRecordConfig(
+        repo_id=DUMMY_REPO_ID,
+        single_task="Dummy task",
+        root=tmp_path / "manual_left_rerecord",
+        num_episodes=1,
+        push_to_hub=False,
+        manual_episode_control=True,
+    )
+    cfg = RecordConfig(
+        robot=robot_cfg,
+        dataset=dataset_cfg,
+        teleop=teleop_cfg,
+        play_sounds=False,
+    )
+
+    events = {"exit_early": False, "rerecord_episode": False, "stop_recording": False}
+    save_calls = []
+    clear_calls = []
+    step = {"value": 0}
+
+    def dummy_record_loop(*args, **kwargs):
+        dataset = kwargs["dataset"]
+        dataset.episode_buffer["size"] = 1
+
+        if step["value"] == 0:
+            events["rerecord_episode"] = True
+            events["exit_early"] = True
+        elif step["value"] == 1:
+            events["exit_early"] = True
+        else:
+            events["stop_recording"] = True
+            events["exit_early"] = True
+        step["value"] += 1
+
+    def dummy_save_episode(self, *args, **kwargs):
+        save_calls.append(1)
+        self.episode_buffer = self.create_episode_buffer()
+
+    def dummy_clear_episode_buffer(self, *args, **kwargs):
+        clear_calls.append(1)
+        self.episode_buffer = self.create_episode_buffer()
+
+    with (
+        patch("lerobot.scripts.lerobot_record.init_keyboard_listener", return_value=(None, events)),
+        patch("lerobot.scripts.lerobot_record.record_loop", side_effect=dummy_record_loop),
+        patch("lerobot.datasets.lerobot_dataset.LeRobotDataset.save_episode", new=dummy_save_episode),
+        patch(
+            "lerobot.datasets.lerobot_dataset.LeRobotDataset.clear_episode_buffer",
+            new=dummy_clear_episode_buffer,
+        ),
+    ):
+        record(cfg)
+
+    assert len(clear_calls) == 1
+    assert len(save_calls) == 2
+
+
+def test_record_manual_esc_saves_partial_episode(tmp_path):
+    robot_cfg = MockRobotConfig()
+    teleop_cfg = MockTeleopConfig()
+    dataset_cfg = DatasetRecordConfig(
+        repo_id=DUMMY_REPO_ID,
+        single_task="Dummy task",
+        root=tmp_path / "manual_esc_partial",
+        num_episodes=1,
+        push_to_hub=False,
+        manual_episode_control=True,
+    )
+    cfg = RecordConfig(
+        robot=robot_cfg,
+        dataset=dataset_cfg,
+        teleop=teleop_cfg,
+        play_sounds=False,
+    )
+
+    events = {"exit_early": False, "rerecord_episode": False, "stop_recording": False}
+    save_calls = []
+
+    def dummy_record_loop(*args, **kwargs):
+        dataset = kwargs["dataset"]
+        dataset.episode_buffer["size"] = 1
+        events["stop_recording"] = True
+        events["exit_early"] = True
+
+    def dummy_save_episode(self, *args, **kwargs):
+        save_calls.append(1)
+        self.episode_buffer = self.create_episode_buffer()
+
+    with (
+        patch("lerobot.scripts.lerobot_record.init_keyboard_listener", return_value=(None, events)),
+        patch("lerobot.scripts.lerobot_record.record_loop", side_effect=dummy_record_loop),
+        patch("lerobot.datasets.lerobot_dataset.LeRobotDataset.save_episode", new=dummy_save_episode),
+    ):
+        record(cfg)
+
+    assert len(save_calls) == 1
