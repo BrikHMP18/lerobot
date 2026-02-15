@@ -96,10 +96,13 @@ export DATASET_REPO_ID="Autobrik/SO-ARM100-dump-pocket-cleaning2"
 export DATASET_ROOT=""                  # optional local dataset path
 export TRAIN_RATIO=0.8
 export SPLIT_SEED=2026
-export TARGET_EPOCHS=2
+export TARGET_EPOCHS=4
 export OVERRIDE_STEPS=""                # optional fixed steps override
-export VAL_FREQ=1000
-export SAVE_FREQ=1000
+export USE_REFERENCE_STEPS=false        # true => per-model reference steps
+export VAL_FREQ=""                      # optional; empty => auto from VALS_PER_EPOCH
+export SAVE_FREQ=""                     # optional; empty => auto from CHECKPOINTS_PER_EPOCH
+export CHECKPOINTS_PER_EPOCH=1
+export VALS_PER_EPOCH=2
 export LOG_FREQ=100
 export POLICY_DEVICE="cuda"
 export WANDB_ENABLE=true
@@ -125,6 +128,25 @@ Each script:
 3. Runs offline validation periodically.
 4. Saves and tracks best checkpoint by minimum `val/loss`.
 
+Step selection priority in scripts:
+
+1. `OVERRIDE_STEPS` (if set)
+2. `USE_REFERENCE_STEPS=true` (`REFERENCE_STEPS` per model)
+3. computed from `TARGET_EPOCHS`
+
+Frequency selection priority in scripts:
+
+1. `SAVE_FREQ` / `VAL_FREQ` (if explicitly set)
+2. auto from `CHECKPOINTS_PER_EPOCH` / `VALS_PER_EPOCH` using `steps_per_epoch`
+3. fallback `1000` when `steps_per_epoch` is unknown (e.g. some custom step modes)
+
+Default `REFERENCE_STEPS` in scripts:
+
+1. ACT: `100000`
+2. Diffusion: `200000`
+3. SmolVLA: `20000`
+4. pi05: `100000`
+
 ## 7. Outputs and best checkpoint
 
 Each run is saved under:
@@ -138,6 +160,13 @@ Key artifacts:
 - `best_val.json`
 
 `best_val.json` contains the selected best step and best `val/loss`.
+
+Best checkpoint update cadence:
+
+1. Offline validation runs every `VAL_FREQ` steps.
+2. It also runs at the final step (`step == cfg.steps`), even if not divisible by `VAL_FREQ`.
+3. If `val/loss` improves, `checkpoints/best` is updated.
+4. Periodic checkpoints are still kept every `SAVE_FREQ` steps and at final step.
 
 ## 8. W&B monitoring for paper figures
 
@@ -190,8 +219,8 @@ Cross-model ranking should be based on your real-world evaluation metric (e.g., 
 Current setup fairness:
 
 1. Same train/val split process (ratio + split seed).
-2. Same nominal epoch budget (`TARGET_EPOCHS=2` by default).
-3. Same validation cadence (`VAL_FREQ`).
+2. Same nominal epoch budget (`TARGET_EPOCHS=4` by default).
+3. Same validation cadence (same `VALS_PER_EPOCH` or same explicit `VAL_FREQ`).
 4. Same checkpoint rule (min `val/loss` per model).
 5. Same single-seed policy for now (`SEED=1000`).
 

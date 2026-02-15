@@ -13,15 +13,28 @@ TRAIN_RATIO="${TRAIN_RATIO:-0.8}"
 SPLIT_SEED="${SPLIT_SEED:-2026}"
 export DATASET_REPO_ID DATASET_ROOT TRAIN_RATIO SPLIT_SEED
 
-TARGET_EPOCHS="${TARGET_EPOCHS:-2}"
+TARGET_EPOCHS="${TARGET_EPOCHS:-4}"
 OVERRIDE_STEPS="${OVERRIDE_STEPS:-}"
-VAL_FREQ="${VAL_FREQ:-1000}"
-SAVE_FREQ="${SAVE_FREQ:-1000}"
+USE_REFERENCE_STEPS="${USE_REFERENCE_STEPS:-false}"
+REFERENCE_STEPS="${REFERENCE_STEPS:-20000}"
+VAL_FREQ="${VAL_FREQ:-}"
+SAVE_FREQ="${SAVE_FREQ:-}"
+CHECKPOINTS_PER_EPOCH="${CHECKPOINTS_PER_EPOCH:-1}"
+VALS_PER_EPOCH="${VALS_PER_EPOCH:-2}"
 LOG_FREQ="${LOG_FREQ:-100}"
 BATCH_SIZE="${BATCH_SIZE:-8}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 SEED="${SEED:-1000}"
 POLICY_DEVICE="${POLICY_DEVICE:-cuda}"
+
+if (( CHECKPOINTS_PER_EPOCH < 1 )); then
+  echo "CHECKPOINTS_PER_EPOCH must be >= 1" >&2
+  exit 1
+fi
+if (( VALS_PER_EPOCH < 1 )); then
+  echo "VALS_PER_EPOCH must be >= 1" >&2
+  exit 1
+fi
 
 SMOLVLA_BASE="${SMOLVLA_BASE:-lerobot/smolvla_base}"
 PUSH_TO_HUB="${PUSH_TO_HUB:-false}"
@@ -84,6 +97,14 @@ DROP_LAST_FRAMES=0
 export BATCH_SIZE TARGET_EPOCHS DROP_LAST_FRAMES
 if [[ -n "${OVERRIDE_STEPS}" ]]; then
   TRAIN_STEPS="${OVERRIDE_STEPS}"
+  STEP_MODE="override"
+  STEP_REFERENCE="n/a"
+  STEPS_PER_EPOCH="custom"
+  TRAIN_SAMPLES="custom"
+elif [[ "${USE_REFERENCE_STEPS}" == "true" ]]; then
+  TRAIN_STEPS="${REFERENCE_STEPS}"
+  STEP_MODE="reference_steps"
+  STEP_REFERENCE="${REFERENCE_STEPS}"
   STEPS_PER_EPOCH="custom"
   TRAIN_SAMPLES="custom"
 else
@@ -114,7 +135,35 @@ PY
   TRAIN_STEPS="${STEP_INFO[0]}"
   STEPS_PER_EPOCH="${STEP_INFO[1]}"
   TRAIN_SAMPLES="${STEP_INFO[2]}"
+  STEP_MODE="target_epochs"
+  STEP_REFERENCE="n/a"
 fi
+
+if [[ -z "${SAVE_FREQ}" ]]; then
+  if [[ "${STEPS_PER_EPOCH}" =~ ^[0-9]+$ ]]; then
+    SAVE_FREQ=$(( (STEPS_PER_EPOCH + CHECKPOINTS_PER_EPOCH - 1) / CHECKPOINTS_PER_EPOCH ))
+  else
+    SAVE_FREQ=1000
+  fi
+fi
+
+if [[ -z "${VAL_FREQ}" ]]; then
+  if [[ "${STEPS_PER_EPOCH}" =~ ^[0-9]+$ ]]; then
+    VAL_FREQ=$(( (STEPS_PER_EPOCH + VALS_PER_EPOCH - 1) / VALS_PER_EPOCH ))
+  else
+    VAL_FREQ=1000
+  fi
+fi
+
+if (( SAVE_FREQ < 1 )); then
+  SAVE_FREQ=1
+fi
+if (( VAL_FREQ < 1 )); then
+  VAL_FREQ=1
+fi
+
+EST_SAVED_CHECKPOINTS=$(( (TRAIN_STEPS + SAVE_FREQ - 1) / SAVE_FREQ ))
+EST_VAL_RUNS=$(( (TRAIN_STEPS - 1) / VAL_FREQ + 1 ))
 
 echo "Training SmolVLA with ${DATASET_REPO_ID}"
 echo "Train episodes: ${TRAIN_EPISODES}"
@@ -122,6 +171,10 @@ echo "Val episodes:   ${VAL_EPISODES}"
 echo "Train samples:  ${TRAIN_SAMPLES}"
 echo "Steps/epoch:    ${STEPS_PER_EPOCH}"
 echo "Train steps:    ${TRAIN_STEPS}"
+echo "Step mode:      ${STEP_MODE}"
+echo "Reference step: ${STEP_REFERENCE}"
+echo "Save freq:      ${SAVE_FREQ} (est. checkpoints=${EST_SAVED_CHECKPOINTS})"
+echo "Val freq:       ${VAL_FREQ} (est. val runs=${EST_VAL_RUNS})"
 echo "Output dir:     ${OUTPUT_DIR}"
 
 DATASET_ROOT_ARGS=()
