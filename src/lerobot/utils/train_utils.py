@@ -54,12 +54,17 @@ def load_training_step(save_dir: Path) -> int:
     return training_step["step"]
 
 
-def update_last_checkpoint(checkpoint_dir: Path) -> Path:
-    last_checkpoint_dir = checkpoint_dir.parent / LAST_CHECKPOINT_LINK
-    if last_checkpoint_dir.is_symlink():
-        last_checkpoint_dir.unlink()
+def update_checkpoint_link(checkpoint_dir: Path, link_name: str = LAST_CHECKPOINT_LINK) -> Path:
+    link_path = checkpoint_dir.parent / link_name
+    if link_path.exists() or link_path.is_symlink():
+        link_path.unlink()
     relative_target = checkpoint_dir.relative_to(checkpoint_dir.parent)
-    last_checkpoint_dir.symlink_to(relative_target)
+    link_path.symlink_to(relative_target)
+    return link_path
+
+
+def update_last_checkpoint(checkpoint_dir: Path) -> Path:
+    return update_checkpoint_link(checkpoint_dir, LAST_CHECKPOINT_LINK)
 
 
 def save_checkpoint(

@@ -45,6 +45,7 @@ TELEOPERATORS = "teleoperators"
 # files & directories
 CHECKPOINTS_DIR = "checkpoints"
 LAST_CHECKPOINT_LINK = "last"
+BEST_CHECKPOINT_LINK = "best"
 PRETRAINED_MODEL_DIR = "pretrained_model"
 TRAINING_STATE_DIR = "training_state"
 RNG_STATE = "rng_state.safetensors"

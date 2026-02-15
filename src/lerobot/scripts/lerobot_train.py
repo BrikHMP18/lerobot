@@ -15,6 +15,7 @@
 # limitations under the License.
 import dataclasses
 import logging
+import numbers
 import time
 from contextlib import nullcontext
 from pprint import pformat
@@ -29,7 +30,7 @@ from lerobot.configs import parser
 from lerobot.configs.train import TrainPipelineConfig
 from lerobot.datasets.factory import make_dataset
 from lerobot.datasets.sampler import EpisodeAwareSampler
-from lerobot.datasets.utils import cycle
+from lerobot.datasets.utils import cycle, write_json
 from lerobot.envs.factory import make_env, make_env_pre_post_processors
 from lerobot.envs.utils import close_envs
 from lerobot.optim.factory import make_optimizer_and_scheduler
@@ -37,6 +38,7 @@ from lerobot.policies.factory import make_policy, make_pre_post_processors
 from lerobot.policies.pretrained import PreTrainedPolicy
 from lerobot.rl.wandb_utils import WandBLogger
 from lerobot.scripts.lerobot_eval import eval_policy_all
+from lerobot.utils.constants import BEST_CHECKPOINT_LINK
 from lerobot.utils.import_utils import register_third_party_plugins
 from lerobot.utils.logging_utils import AverageMeter, MetricsTracker
 from lerobot.utils.random_utils import set_seed
@@ -45,6 +47,7 @@ from lerobot.utils.train_utils import (
     get_step_identifier,
     load_training_state,
     save_checkpoint,
+    update_checkpoint_link,
     update_last_checkpoint,
 )
 from lerobot.utils.utils import (
@@ -52,6 +55,90 @@ from lerobot.utils.utils import (
     has_method,
     init_logging,
 )
+
+
+def flatten_output_metrics(output_dict: dict[str, Any] | None) -> dict[str, int | float | str]:
+    """
+    Flattens policy output metrics to WandB-friendly scalar values.
+
+    Non-scalar tensors/arrays/lists are expanded to `<name>_<idx>`.
+    """
+    if not output_dict:
+        return {}
+
+    flat: dict[str, int | float | str] = {}
+    for key, value in output_dict.items():
+        if isinstance(value, (str, bool)) or isinstance(value, numbers.Number):
+            flat[key] = value  # type: ignore[assignment]
+            continue
+
+        if isinstance(value, torch.Tensor):
+            if value.numel() == 1:
+                flat[key] = value.item()
+            else:
+                for idx, elem in enumerate(value.detach().flatten().tolist()):
+                    if isinstance(elem, numbers.Number):
+                        flat[f"{key}_{idx}"] = float(elem)
+            continue
+
+        if isinstance(value, (list, tuple)):
+            for idx, elem in enumerate(value):
+                if isinstance(elem, numbers.Number):
+                    flat[f"{key}_{idx}"] = float(elem)
+            continue
+
+        if hasattr(value, "tolist"):
+            converted = value.tolist()
+            if isinstance(converted, list):
+                for idx, elem in enumerate(converted):
+                    if isinstance(elem, numbers.Number):
+                        flat[f"{key}_{idx}"] = float(elem)
+
+    return flat
+
+
+def run_offline_validation(
+    policy: PreTrainedPolicy,
+    val_dataloader: torch.utils.data.DataLoader,
+    preprocessor,
+    accelerator: Accelerator,
+    max_batches: int | None = None,
+) -> dict[str, float]:
+    """
+    Runs offline validation on held-out episodes and returns averaged metrics.
+    """
+    model = accelerator.unwrap_model(policy, keep_fp32_wrapper=True)
+    was_training = model.training
+    model.eval()
+
+    total_loss = 0.0
+    num_batches = 0
+    aggregated_metrics: dict[str, float] = {}
+
+    with torch.no_grad(), accelerator.autocast():
+        for batch_id, batch in enumerate(val_dataloader):
+            if max_batches is not None and batch_id >= max_batches:
+                break
+            batch = preprocessor(batch)
+            loss, output_dict = model.forward(batch)
+            total_loss += float(loss.item())
+            num_batches += 1
+
+            for key, value in flatten_output_metrics(output_dict).items():
+                if isinstance(value, numbers.Number):
+                    aggregated_metrics[key] = aggregated_metrics.get(key, 0.0) + float(value)
+
+    if was_training:
+        model.train()
+
+    if num_batches == 0:
+        raise ValueError("Offline validation dataloader produced zero batches.")
+
+    val_metrics = {"loss": total_loss / num_batches}
+    for key, summed in aggregated_metrics.items():
+        val_metrics[key] = summed / num_batches
+
+    return val_metrics
 
 
 def update_policy(
@@ -221,6 +308,14 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
     if not is_main_process:
         dataset = make_dataset(cfg)
 
+    val_dataset = None
+    val_dataloader = None
+    if cfg.offline_val.enable and is_main_process:
+        logging.info("Creating offline validation dataset")
+        val_dataset_cfg = dataclasses.replace(cfg.dataset, episodes=cfg.offline_val.episodes)
+        val_cfg = dataclasses.replace(cfg, dataset=val_dataset_cfg)
+        val_dataset = make_dataset(val_cfg)
+
     # Create environment used for evaluating checkpoints during training on simulation data.
     # On real-world data, no need to create an environment as evaluations are done outside train.py,
     # using the eval.py instead, with gym_dora environment and dora-rs.
@@ -361,6 +456,29 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
         prefetch_factor=2 if cfg.num_workers > 0 else None,
     )
 
+    if val_dataset is not None:
+        if hasattr(cfg.policy, "drop_n_last_frames"):
+            val_sampler = EpisodeAwareSampler(
+                val_dataset.meta.episodes["dataset_from_index"],
+                val_dataset.meta.episodes["dataset_to_index"],
+                episode_indices_to_use=val_dataset.episodes,
+                drop_n_last_frames=cfg.policy.drop_n_last_frames,
+                shuffle=False,
+            )
+        else:
+            val_sampler = None
+
+        val_dataloader = torch.utils.data.DataLoader(
+            val_dataset,
+            num_workers=cfg.num_workers,
+            batch_size=cfg.batch_size,
+            shuffle=False,
+            sampler=val_sampler,
+            pin_memory=device.type == "cuda",
+            drop_last=False,
+            prefetch_factor=2 if cfg.num_workers > 0 else None,
+        )
+
     # Prepare everything with accelerator
     accelerator.wait_for_everyone()
     policy, optimizer, dataloader, lr_scheduler = accelerator.prepare(
@@ -394,6 +512,10 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
             f"Start offline training on a fixed dataset, with effective batch size: {effective_batch_size}"
         )
 
+    saved_checkpoints_by_step: dict[int, Any] = {}
+    best_val_loss = float("inf")
+    best_val_step: int | None = None
+
     for _ in range(step, cfg.steps):
         start_time = time.perf_counter()
         batch = next(dl_iter)
@@ -418,13 +540,14 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
         is_log_step = cfg.log_freq > 0 and step % cfg.log_freq == 0 and is_main_process
         is_saving_step = step % cfg.save_freq == 0 or step == cfg.steps
         is_eval_step = cfg.eval_freq > 0 and step % cfg.eval_freq == 0
+        is_offline_val_step = cfg.offline_val.enable and step % cfg.offline_val.freq == 0
 
         if is_log_step:
             logging.info(train_tracker)
             if wandb_logger:
                 wandb_log_dict = train_tracker.to_dict()
                 if output_dict:
-                    wandb_log_dict.update(output_dict)
+                    wandb_log_dict.update(flatten_output_metrics(output_dict))
                 # Log RA-BC statistics if enabled
                 if rabc_weights is not None:
                     rabc_stats = rabc_weights.get_stats()
@@ -453,8 +576,65 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
                     postprocessor=postprocessor,
                 )
                 update_last_checkpoint(checkpoint_dir)
+                saved_checkpoints_by_step[step] = checkpoint_dir
                 if wandb_logger:
                     wandb_logger.log_policy(checkpoint_dir)
+
+            accelerator.wait_for_everyone()
+
+        if is_offline_val_step:
+            if is_main_process:
+                if val_dataloader is None:
+                    raise ValueError(
+                        "offline_val.enable=True but validation dataloader was not initialized."
+                    )
+
+                val_log_dict = run_offline_validation(
+                    policy=policy,
+                    val_dataloader=val_dataloader,
+                    preprocessor=preprocessor,
+                    accelerator=accelerator,
+                    max_batches=cfg.offline_val.max_batches,
+                )
+                logging.info("Offline validation step %s: val_loss=%.6f", step, val_log_dict["loss"])
+
+                if cfg.offline_val.track_best_checkpoint and val_log_dict["loss"] < best_val_loss:
+                    best_val_loss = val_log_dict["loss"]
+                    best_val_step = step
+                    val_log_dict["best_val_loss"] = best_val_loss
+                    val_log_dict["best_val_step"] = best_val_step
+
+                    if cfg.save_checkpoint:
+                        checkpoint_dir = saved_checkpoints_by_step.get(step)
+                        if checkpoint_dir is None:
+                            logging.info(
+                                "New best validation score at step %s. Saving checkpoint.", step
+                            )
+                            checkpoint_dir = get_step_checkpoint_dir(cfg.output_dir, cfg.steps, step)
+                            save_checkpoint(
+                                checkpoint_dir=checkpoint_dir,
+                                step=step,
+                                cfg=cfg,
+                                policy=accelerator.unwrap_model(policy),
+                                optimizer=optimizer,
+                                scheduler=lr_scheduler,
+                                preprocessor=preprocessor,
+                                postprocessor=postprocessor,
+                            )
+                            update_last_checkpoint(checkpoint_dir)
+                            saved_checkpoints_by_step[step] = checkpoint_dir
+                            if wandb_logger:
+                                wandb_logger.log_policy(checkpoint_dir)
+
+                        update_checkpoint_link(checkpoint_dir, link_name=BEST_CHECKPOINT_LINK)
+
+                    write_json(
+                        {"best_step": best_val_step, "best_val_loss": best_val_loss},
+                        cfg.output_dir / "best_val.json",
+                    )
+
+                if wandb_logger:
+                    wandb_logger.log_dict(val_log_dict, step=step, mode="val")
 
             accelerator.wait_for_everyone()
 

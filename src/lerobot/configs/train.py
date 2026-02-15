@@ -34,6 +34,20 @@ TRAIN_CONFIG_NAME = "train_config.json"
 
 
 @dataclass
+class OfflineValConfig:
+    # Enable offline validation on held-out episodes from the same dataset.
+    enable: bool = False
+    # Episodes used for validation. Required when `enable=True`.
+    episodes: list[int] | None = None
+    # Run offline validation every `freq` optimizer steps.
+    freq: int = 1_000
+    # Optionally cap the number of validation batches for faster checkpoints.
+    max_batches: int | None = None
+    # Track and expose the best checkpoint according to `val/loss`.
+    track_best_checkpoint: bool = True
+
+
+@dataclass
 class TrainPipelineConfig(HubMixin):
     dataset: DatasetConfig
     env: envs.EnvConfig | None = None
@@ -64,6 +78,7 @@ class TrainPipelineConfig(HubMixin):
     optimizer: OptimizerConfig | None = None
     scheduler: LRSchedulerConfig | None = None
     eval: EvalConfig = field(default_factory=EvalConfig)
+    offline_val: OfflineValConfig = field(default_factory=OfflineValConfig)
     wandb: WandBConfig = field(default_factory=WandBConfig)
     peft: PeftConfig | None = None
 
@@ -139,6 +154,17 @@ class TrainPipelineConfig(HubMixin):
             raise ValueError(
                 "'policy.repo_id' argument missing. Please specify it to push the model to the hub."
             )
+
+        if self.offline_val.enable:
+            if not self.offline_val.episodes:
+                raise ValueError(
+                    "Offline validation is enabled but no episodes were provided. "
+                    "Set --offline_val.episodes=[...]"
+                )
+            if self.offline_val.freq <= 0:
+                raise ValueError("offline_val.freq must be > 0.")
+            if self.offline_val.max_batches is not None and self.offline_val.max_batches <= 0:
+                raise ValueError("offline_val.max_batches must be > 0 when provided.")
 
         if self.use_rabc and not self.rabc_progress_path:
             # Auto-detect from dataset path
