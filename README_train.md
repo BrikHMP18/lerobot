@@ -129,6 +129,13 @@ export PUSH_TO_HUB=false
 export SEED=1000
 ```
 
+Default batch sizes in scripts:
+
+1. ACT: `BATCH_SIZE=16`
+2. Diffusion: `BATCH_SIZE=32`
+3. SmolVLA: `BATCH_SIZE=16`
+4. pi05: `BATCH_SIZE=8`
+
 ## 6. Run the 4 trainings (1 GPU: sequential)
 
 ```bash
