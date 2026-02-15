@@ -14,7 +14,7 @@ SINGLE_TASK="${SINGLE_TASK:-use the scoop-like end effector to gather sand from 
 
 DISPLAY_DATA="${DISPLAY_DATA:-false}"
 PUSH_TO_HUB="${PUSH_TO_HUB:-true}"
-RESUME="${RESUME:-false}"
+RESUME="${RESUME:-true}"
 MANUAL_EPISODE_CONTROL="${MANUAL_EPISODE_CONTROL:-true}"
 
 # In manual mode: right arrow saves current episode and starts next,
