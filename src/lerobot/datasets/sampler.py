@@ -27,6 +27,7 @@ class EpisodeAwareSampler:
         drop_n_first_frames: int = 0,
         drop_n_last_frames: int = 0,
         shuffle: bool = False,
+        index_mapping: dict[int, int] | None = None,
     ):
         """Sampler that optionally incorporates episode boundary information.
 
@@ -38,6 +39,8 @@ class EpisodeAwareSampler:
             drop_n_first_frames: Number of frames to drop from the start of each episode.
             drop_n_last_frames: Number of frames to drop from the end of each episode.
             shuffle: Whether to shuffle the indices.
+            index_mapping: Optional mapping to remap sampled indices (e.g., absolute->relative indices
+                when dataset is loaded from a subset of episodes).
         """
         indices = []
         for episode_idx, (start_index, end_index) in enumerate(
@@ -45,6 +48,9 @@ class EpisodeAwareSampler:
         ):
             if episode_indices_to_use is None or episode_idx in episode_indices_to_use:
                 indices.extend(range(start_index + drop_n_first_frames, end_index - drop_n_last_frames))
+
+        if index_mapping is not None:
+            indices = [index_mapping[i] for i in indices]
 
         self.indices = indices
         self.shuffle = shuffle

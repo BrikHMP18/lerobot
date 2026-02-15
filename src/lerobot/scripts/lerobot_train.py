@@ -440,6 +440,7 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
             episode_indices_to_use=dataset.episodes,
             drop_n_last_frames=cfg.policy.drop_n_last_frames,
             shuffle=True,
+            index_mapping=getattr(dataset, "_absolute_to_relative_idx", None),
         )
     else:
         shuffle = True
@@ -464,6 +465,7 @@ def train(cfg: TrainPipelineConfig, accelerator: Accelerator | None = None):
                 episode_indices_to_use=val_dataset.episodes,
                 drop_n_last_frames=cfg.policy.drop_n_last_frames,
                 shuffle=False,
+                index_mapping=getattr(val_dataset, "_absolute_to_relative_idx", None),
             )
         else:
             val_sampler = None
