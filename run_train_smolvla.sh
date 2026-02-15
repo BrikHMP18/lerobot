@@ -37,6 +37,8 @@ if (( VALS_PER_EPOCH < 1 )); then
 fi
 
 SMOLVLA_BASE="${SMOLVLA_BASE:-lerobot/smolvla_base}"
+EMPTY_CAMERAS="${EMPTY_CAMERAS:-1}"
+RENAME_MAP="${RENAME_MAP:-{\"observation.images.top\":\"observation.images.camera1\",\"observation.images.wrist\":\"observation.images.camera2\"}}"
 PUSH_TO_HUB="${PUSH_TO_HUB:-false}"
 WANDB_ENABLE="${WANDB_ENABLE:-true}"
 WANDB_PROJECT="${WANDB_PROJECT:-dump-pocket-benchmark}"
@@ -176,6 +178,8 @@ echo "Reference step: ${STEP_REFERENCE}"
 echo "Save freq:      ${SAVE_FREQ} (est. checkpoints=${EST_SAVED_CHECKPOINTS})"
 echo "Val freq:       ${VAL_FREQ} (est. val runs=${EST_VAL_RUNS})"
 echo "Output dir:     ${OUTPUT_DIR}"
+echo "Rename map:     ${RENAME_MAP}"
+echo "Empty cameras:  ${EMPTY_CAMERAS}"
 
 DATASET_ROOT_ARGS=()
 if [[ -n "${DATASET_ROOT}" ]]; then
@@ -195,8 +199,10 @@ lerobot-train \
   "${DATASET_ROOT_ARGS[@]}" \
   --dataset.episodes="${TRAIN_EPISODES}" \
   --policy.path="${SMOLVLA_BASE}" \
+  --policy.empty_cameras="${EMPTY_CAMERAS}" \
   --policy.device="${POLICY_DEVICE}" \
   --policy.push_to_hub="${PUSH_TO_HUB}" \
+  --rename_map="${RENAME_MAP}" \
   --output_dir="${OUTPUT_DIR}" \
   --job_name="${JOB_NAME}" \
   --seed="${SEED}" \
