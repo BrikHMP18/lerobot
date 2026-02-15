@@ -13,11 +13,12 @@ TRAIN_RATIO="${TRAIN_RATIO:-0.8}"
 SPLIT_SEED="${SPLIT_SEED:-2026}"
 export DATASET_REPO_ID DATASET_ROOT TRAIN_RATIO SPLIT_SEED
 
-FAIR_STEPS="${FAIR_STEPS:-10000}"
+TARGET_EPOCHS="${TARGET_EPOCHS:-2}"
+OVERRIDE_STEPS="${OVERRIDE_STEPS:-}"
 VAL_FREQ="${VAL_FREQ:-1000}"
 SAVE_FREQ="${SAVE_FREQ:-1000}"
 LOG_FREQ="${LOG_FREQ:-100}"
-BATCH_SIZE="${BATCH_SIZE:-16}"
+BATCH_SIZE="${BATCH_SIZE:-32}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 SEED="${SEED:-1000}"
 POLICY_DEVICE="${POLICY_DEVICE:-cuda}"
@@ -76,10 +77,50 @@ PY
 
 TRAIN_EPISODES="${SPLIT_EPISODES[0]}"
 VAL_EPISODES="${SPLIT_EPISODES[1]}"
+export TRAIN_EPISODES
+
+DROP_LAST_FRAMES=7
+export BATCH_SIZE TARGET_EPOCHS DROP_LAST_FRAMES
+if [[ -n "${OVERRIDE_STEPS}" ]]; then
+  TRAIN_STEPS="${OVERRIDE_STEPS}"
+  STEPS_PER_EPOCH="custom"
+  TRAIN_SAMPLES="custom"
+else
+  readarray -t STEP_INFO < <(
+    python - <<'PY'
+import ast
+import math
+import os
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+repo_id = os.environ["DATASET_REPO_ID"]
+root = os.environ.get("DATASET_ROOT") or None
+episodes = ast.literal_eval(os.environ["TRAIN_EPISODES"])
+batch_size = int(os.environ["BATCH_SIZE"])
+target_epochs = float(os.environ["TARGET_EPOCHS"])
+drop_last_frames = int(os.environ["DROP_LAST_FRAMES"])
+
+ds = LeRobotDataset(repo_id, root=root, episodes=episodes)
+train_samples = max(1, ds.num_frames - drop_last_frames * len(episodes))
+steps_per_epoch = math.ceil(train_samples / batch_size)
+train_steps = max(1, math.ceil(steps_per_epoch * target_epochs))
+
+print(train_steps)
+print(steps_per_epoch)
+print(train_samples)
+PY
+  )
+  TRAIN_STEPS="${STEP_INFO[0]}"
+  STEPS_PER_EPOCH="${STEP_INFO[1]}"
+  TRAIN_SAMPLES="${STEP_INFO[2]}"
+fi
 
 echo "Training Diffusion Policy with ${DATASET_REPO_ID}"
 echo "Train episodes: ${TRAIN_EPISODES}"
 echo "Val episodes:   ${VAL_EPISODES}"
+echo "Train samples:  ${TRAIN_SAMPLES}"
+echo "Steps/epoch:    ${STEPS_PER_EPOCH}"
+echo "Train steps:    ${TRAIN_STEPS}"
 echo "Output dir:     ${OUTPUT_DIR}"
 
 DATASET_ROOT_ARGS=()
@@ -107,7 +148,7 @@ lerobot-train \
   --seed="${SEED}" \
   --batch_size="${BATCH_SIZE}" \
   --num_workers="${NUM_WORKERS}" \
-  --steps="${FAIR_STEPS}" \
+  --steps="${TRAIN_STEPS}" \
   --eval_freq=-1 \
   --log_freq="${LOG_FREQ}" \
   --save_freq="${SAVE_FREQ}" \
