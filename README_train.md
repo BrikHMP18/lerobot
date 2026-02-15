@@ -64,8 +64,25 @@ git remote -v
 conda create -y -n lerobot python=3.10
 conda activate lerobot
 pip install --upgrade pip
-pip install -e ".[smolvla,pi]"
+pip install -e .
 ```
+
+Model-specific installs (important):
+
+1. ACT / Diffusion Policy instance:
+```bash
+pip install -e .
+```
+2. SmolVLA instance:
+```bash
+pip install -e ".[smolvla]"
+```
+3. pi05 instance:
+```bash
+pip install -e ".[pi]"
+```
+
+Do not install `.[smolvla,pi]` together in one environment because of a known `transformers` version conflict.
 
 Quick sanity check:
 
@@ -120,6 +137,13 @@ export SEED=1000
 ./run_train_smolvla.sh
 ./run_train_pi05.sh
 ```
+
+For 4 separate Vast instances, recommended mapping:
+
+1. Instance A (base install): `./run_train_act.sh`
+2. Instance B (base install): `./run_train_dp.sh`
+3. Instance C (`.[smolvla]`): `./run_train_smolvla.sh`
+4. Instance D (`.[pi]`): `./run_train_pi05.sh`
 
 Each script:
 
