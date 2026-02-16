@@ -40,6 +40,7 @@ PUSH_TO_HUB="${PUSH_TO_HUB:-false}"
 WANDB_ENABLE="${WANDB_ENABLE:-true}"
 WANDB_PROJECT="${WANDB_PROJECT:-dump-pocket-benchmark}"
 WANDB_ENTITY="${WANDB_ENTITY:-}"
+WANDB_DISABLE_ARTIFACT="${WANDB_DISABLE_ARTIFACT:-true}"
 
 RUN_TS="$(date +%Y%m%d_%H%M%S)"
 JOB_NAME="${JOB_NAME:-benchmark_act}"
@@ -183,6 +184,7 @@ fi
 
 WANDB_ARGS=(
   --wandb.enable="${WANDB_ENABLE}"
+  --wandb.disable_artifact="${WANDB_DISABLE_ARTIFACT}"
   --wandb.project="${WANDB_PROJECT}"
 )
 if [[ -n "${WANDB_ENTITY}" ]]; then

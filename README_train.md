@@ -256,3 +256,69 @@ Current setup fairness:
 5. Same single-seed policy for now (`SEED=1000`).
 
 When you are ready for stronger statistical claims, add multi-seed runs.
+
+## 11. Real-Robot Inference Rollouts (Policy-Only)
+
+Use these scripts to run autonomous robot rollouts with recording (`lerobot-record --policy.path=...`) for each model:
+
+```bash
+./run_inference_act.sh
+./run_inference_dp.sh
+./run_inference_pi05.sh
+./run_inference_smolvla.sh
+```
+
+Each script:
+
+1. Resolves `POLICY_PATH` in this order:
+- explicit `POLICY_PATH`
+- `RUN_DIR/checkpoints/best/pretrained_model`
+- latest `outputs/train/benchmark/*_benchmark_<model>/checkpoints/best/pretrained_model`
+2. Validates `config.json` and `model.safetensors` exist in resolved `POLICY_PATH`.
+3. Uses policy-only control (no teleop), dual cameras (`top`, `wrist`), and records rollouts.
+4. Uses manual episode control by default.
+
+Manual controls:
+
+1. `Right Arrow`: save current episode and start next
+2. `Left Arrow`: discard/re-record current episode
+3. `Esc`: save current partial episode and exit session
+
+Default environments:
+
+1. `run_inference_act.sh` -> `CONDA_ENV=lerobot`
+2. `run_inference_dp.sh` -> `CONDA_ENV=lerobot`
+3. `run_inference_pi05.sh` -> `CONDA_ENV=lerobot-pi`
+4. `run_inference_smolvla.sh` -> `CONDA_ENV=lerobot-smolvla`
+
+Default eval dataset repos (separated by model):
+
+1. `Autobrik/SO-ARM100-dump-pocket-cleaning2-eval-act`
+2. `Autobrik/SO-ARM100-dump-pocket-cleaning2-eval-diffusion`
+3. `Autobrik/SO-ARM100-dump-pocket-cleaning2-eval-pi05`
+4. `Autobrik/SO-ARM100-dump-pocket-cleaning2-eval-smolvla`
+
+Defaults chosen for field robustness:
+
+1. `PUSH_TO_HUB=false` (local-first, upload later)
+2. `MANUAL_EPISODE_CONTROL=true`
+3. `DISPLAY_DATA=true`
+4. `RESUME=auto`
+
+`RESUME=auto` behavior:
+
+1. If dataset already exists locally (`.../meta/info.json`), scripts set `--resume=true`.
+2. Otherwise, scripts set `--resume=false`.
+
+Useful overrides:
+
+```bash
+# Force a specific checkpoint
+POLICY_PATH="outputs/train/benchmark/<run>/checkpoints/best/pretrained_model" ./run_inference_act.sh
+
+# Force a specific run directory (POLICY_PATH auto-derived)
+RUN_DIR="outputs/train/benchmark/<run>" ./run_inference_dp.sh
+
+# Push rollout dataset to HF at end
+PUSH_TO_HUB=true ./run_inference_pi05.sh
+```
