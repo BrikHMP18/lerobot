@@ -293,10 +293,10 @@ Default environments:
 
 Default eval dataset repos (separated by model):
 
-1. `Autobrik/SO-ARM100-dump-pocket-cleaning2-eval-act`
-2. `Autobrik/SO-ARM100-dump-pocket-cleaning2-eval-diffusion`
-3. `Autobrik/SO-ARM100-dump-pocket-cleaning2-eval-pi05`
-4. `Autobrik/SO-ARM100-dump-pocket-cleaning2-eval-smolvla`
+1. `Autobrik/eval_SO-ARM100-dump-pocket-cleaning2-act`
+2. `Autobrik/eval_SO-ARM100-dump-pocket-cleaning2-diffusion`
+3. `Autobrik/eval_SO-ARM100-dump-pocket-cleaning2-pi05`
+4. `Autobrik/eval_SO-ARM100-dump-pocket-cleaning2-smolvla`
 
 Defaults chosen for field robustness:
 

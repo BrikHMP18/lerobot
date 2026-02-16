@@ -405,7 +405,7 @@ class ACT(nn.Module):
         # Note: when ACTION is provided (e.g. offline validation), we still run the VAE encoder in eval mode so
         # the KL term can be computed from (mu, log_sigma_x2). During policy rollout/inference ACTION is absent,
         # so we naturally fall back to the zero-latent branch below.
-        if self.config.use_vae and ACTION in batch:
+        if self.config.use_vae and ACTION in batch and batch[ACTION] is not None:
             # Prepare the input to the VAE encoder: [cls, *joint_space_configuration, *action_sequence].
             cls_embed = einops.repeat(
                 self.vae_encoder_cls_embed.weight, "1 d -> b 1 d", b=batch_size

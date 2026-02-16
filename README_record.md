@@ -102,12 +102,12 @@ Define el mapeo que usaras en todos los comandos (teleoperate, record, replay, e
 ```bash
 # Ajusta estos valores segun tu maquina
 TOP_CAM=/dev/video2
-WRIST_CAM=/dev/video4
+WRIST_CAM=/dev/video0
 ```
 
 Notas:
 
-- Si en tu equipo la wrist aparece como `/dev/video2`, cambia solo `WRIST_CAM`.
+- Si en tu equipo la wrist aparece en otro indice, cambia solo `WRIST_CAM`.
 - Para entrenar `pi05`, `smolvla` y `act`, manten los mismos nombres de camara (`top`, `wrist`) y la misma configuracion durante recoleccion y evaluacion.
 
 ## 7. Teleoperar (prueba completa robot + camara)

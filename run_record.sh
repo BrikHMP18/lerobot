@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TOP_CAM="${TOP_CAM:-/dev/video2}"
-WRIST_CAM="${WRIST_CAM:-/dev/video4}"
+WRIST_CAM="${WRIST_CAM:-/dev/video0}"
 ROBOT_PORT="${ROBOT_PORT:-/dev/ttyACM0}"
 TELEOP_PORT="${TELEOP_PORT:-/dev/ttyACM1}"
 
